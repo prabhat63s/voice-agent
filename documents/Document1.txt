@@ -1,0 +1,3 @@
+Introduction to MERN stack:
+MongoDB, Express, React, and Node.js are the main technologies used in the MERN stack.
+It is popular for building full-stack web applications.

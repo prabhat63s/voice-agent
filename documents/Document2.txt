@@ -1,0 +1,3 @@
+Frontend development with React:
+React is a JavaScript library for building user interfaces.
+Components, props, and state are core concepts in React.

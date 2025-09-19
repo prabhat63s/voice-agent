@@ -3,19 +3,21 @@
 
 import Header from "@/components/Header";
 import { useState, useRef, useEffect } from "react";
-import { FaArrowUp, FaRegClipboard, FaCheck } from "react-icons/fa";
+import { FaArrowUp } from "react-icons/fa";
 import { RealtimeAgent, RealtimeSession } from "@openai/agents/realtime";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import LoaderDots from "@/components/LoaderDots";
 import { HiMiniMicrophone, HiOutlineMicrophone } from "react-icons/hi2";
+import CopyButton from "@/components/CopyButton";
 
 interface Message {
     user?: string;
     bot?: string;
+    tool?: string;
 }
+
 
 export default function ChatPage() {
     const [input, setInput] = useState("");
@@ -33,43 +35,60 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Send text message
+    // Inside your ChatPage component, before sendMessage:
+    const detectToolType = (text: string) => {
+        const lower = text.toLowerCase();
+
+        if (/(weather|temperature|forecast)/.test(lower)) return "function_calling";
+        if (/(open|run|start|list|screenshot)/.test(lower)) return "computer_use";
+        if (/(ls|dir|pwd|cd|echo)/.test(lower)) return "local_shell";
+        if (/(document|file|report|search)/.test(lower)) return "file_search";
+        return "web_search"; // fallback
+    };
+
     const sendMessage = async () => {
         if (!input.trim()) return;
         const userInput = input;
         setInput("");
-        setMessages(prev => [...prev, { user: userInput }]);
+        setMessages((prev) => [...prev, { user: userInput }]);
         if (textareaRef.current) textareaRef.current.style.height = "auto";
         setLoading(true);
 
         try {
+            const autoTool = detectToolType(userInput);
+
             const res = await fetch("/api/agent", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: userInput }),
+                body: JSON.stringify({ prompt: userInput, toolType: autoTool }),
             });
+
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Unknown error");
-            setMessages(prev => [...prev, { bot: data.output }]);
+
+            setMessages((prev) => [
+                ...prev,
+                { bot: data.output, tool: autoTool }
+            ]);
         } catch (err: any) {
-            setMessages(prev => [...prev, { bot: `**Error:** ${err.message || err}` }]);
+            setMessages((prev) => [...prev, { bot: `**Error:** ${err.message || err}` }]);
         } finally {
             setLoading(false);
         }
     };
 
+
+
     // Start voice session
     const startVoiceSession = async () => {
         try {
-            // 1️⃣ Close existing session if any
             if (sessionRef.current) {
-                await sessionRef.current.close(); // properly close old session
+                await sessionRef.current.close();
                 sessionRef.current = null;
                 rtcAgentRef.current = null;
                 setVoiceActive(false);
             }
 
-            // 2️⃣ Request ephemeral key from your API
             const res = await fetch("/api/realtime-session", { method: "POST" });
             if (!res.ok) {
                 const errData = await res.json();
@@ -80,30 +99,26 @@ export default function ChatPage() {
             const ephemeralKey = data.client_secret?.value;
             if (!ephemeralKey) throw new Error("No ephemeral key received");
 
-            // 3️⃣ Create a RealtimeAgent
             const agent = new RealtimeAgent({
                 name: "Voice Assistant",
                 instructions: "You are a helpful, friendly voice assistant.",
             });
             rtcAgentRef.current = agent;
 
-            // 4️⃣ Create a RealtimeSession
             const session = new RealtimeSession(agent);
             sessionRef.current = session;
 
-            // 5️⃣ Connect session using SDK (DO NOT call /v1/realtime/calls manually)
             await session.connect({
                 apiKey: ephemeralKey,
-                model: "gpt-4o-realtime-preview", // REQUIRED
+                model: "gpt-4o-realtime-preview",
             });
 
             setVoiceActive(true);
 
-            // 6️⃣ Stream bot text responses into chat
             let currentBotIndex: number | null = null;
             (session as any).on("response.delta", (evt: any) => {
                 if (!evt?.delta?.content) return;
-                setMessages(prev => {
+                setMessages((prev) => {
                     if (currentBotIndex !== null && prev[currentBotIndex]?.bot) {
                         const updated = [...prev];
                         updated[currentBotIndex].bot += evt.delta.content;
@@ -120,12 +135,10 @@ export default function ChatPage() {
                 currentBotIndex = null;
             });
 
-            // 7️⃣ Optional error handling
             session.on("error", (err: any) => console.error("Realtime session error:", err));
-
         } catch (err) {
             console.error("startVoiceSession error:", err);
-            setMessages(prev => [...prev, { bot: `**Error:** ${String(err)}` }]);
+            setMessages((prev) => [...prev, { bot: `**Error:** ${String(err)}` }]);
         }
     };
 
@@ -133,7 +146,7 @@ export default function ChatPage() {
     const stopVoiceSession = async () => {
         try {
             const session = sessionRef.current as any;
-            if (session) await session.close(); // ensures proper cleanup
+            if (session) await session.close();
             sessionRef.current = null;
             rtcAgentRef.current = null;
             setVoiceActive(false);
@@ -141,7 +154,6 @@ export default function ChatPage() {
             console.warn("stopVoiceSession cleanup error:", err);
         }
     };
-
 
     // Render Markdown
     const renderMarkdown = (text: string, idx: number) => (
@@ -203,19 +215,23 @@ export default function ChatPage() {
                             )}
                             {msg.bot && (
                                 <div className="flex justify-start">
-                                    <div className="max-w-[80%] bg-gray-100 text-black p-4 flex flex-col gap-2 rounded-2xl">
+                                    <div className="max-w-[80%] bg-gray-100 text-black py-2 px-4 flex flex-col gap-1 rounded-2xl">
                                         {renderMarkdown(msg.bot, idx)}
+
+                                        {/* Tool badge */}
+                                        {msg.tool && (
+                                            <span className="w-fit inline-block bg-blue-200 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full mb-1">
+                                                {msg.tool.replace("_", " ").toUpperCase()}
+                                            </span>
+                                        )}
+
                                     </div>
                                 </div>
                             )}
                         </div>
                     ))}
 
-                    {loading && (
-                        <div className="flex justify-start mt-4">
-                            <LoaderDots />
-                        </div>
-                    )}
+                    {loading && <div className="w-4 h-4 bg-gray-500 rounded-full animate-pulse"></div>}
 
                     <div ref={messagesEndRef} />
                 </div>
@@ -227,7 +243,7 @@ export default function ChatPage() {
                     <textarea
                         ref={textareaRef}
                         value={input}
-                        onChange={e => {
+                        onChange={(e) => {
                             setInput(e.target.value);
                             const ta = textareaRef.current;
                             if (ta) {
@@ -235,7 +251,7 @@ export default function ChatPage() {
                                 ta.style.height = ta.scrollHeight + "px";
                             }
                         }}
-                        onKeyDown={e => {
+                        onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
                                 sendMessage();
@@ -245,6 +261,7 @@ export default function ChatPage() {
                         rows={1}
                         className="flex-1 resize-none focus:outline-none bg-transparent overflow-hidden max-h-48"
                     />
+
                     <div className="absolute bottom-3 right-3 flex items-center gap-2">
                         {!voiceActive ? (
                             <button
@@ -275,31 +292,5 @@ export default function ChatPage() {
                 </div>
             </div>
         </div>
-    );
-}
-
-// Copy Button Component
-function CopyButton({ text }: { text: string }) {
-    const [copied, setCopied] = useState(false);
-    const copy = async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-    return (
-        <button
-            onClick={copy}
-            className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-neutral-800 text-white opacity-0 group-hover:opacity-100 transition"
-        >
-            {copied ? (
-                <span className="flex items-center">
-                    <FaCheck /> Copied
-                </span>
-            ) : (
-                <span className="flex items-center">
-                    <FaRegClipboard /> Copy
-                </span>
-            )}
-        </button>
     );
 }

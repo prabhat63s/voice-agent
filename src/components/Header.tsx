@@ -24,7 +24,7 @@ export default function Header() {
 
     return (
         <header className="w-full bg-transparent px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
-            <Link href="/" className="text-xl font-bold text-black flex items-center gap-2">
+            <Link href="/" className="text-xl font-semibold text-black flex items-center gap-2">
                 Realtime Agent
             </Link>
 
