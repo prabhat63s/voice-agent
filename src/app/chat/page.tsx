@@ -249,10 +249,10 @@ export default function ChatPage() {
                         {!voiceActive ? (
                             <button
                                 onClick={startVoiceSession}
-                                className="p-1.5 rounded-full bg-green-600 hover:bg-green-500 text-white"
+                                className="p-1.5 rounded-full bg-neutral-800/50 hover:bg-neutral-700 text-white"
                                 title="Start Voice Session"
                             >
-                                <HiMiniMicrophone className="w-5 h-5" />
+                                <HiMiniMicrophone />
                             </button>
                         ) : (
                             <button
@@ -260,7 +260,7 @@ export default function ChatPage() {
                                 className="p-1.5 rounded-full bg-red-600 hover:bg-red-500 text-white"
                                 title="Stop Voice Session"
                             >
-                                <HiOutlineMicrophone className="w-5 h-5" />
+                                <HiOutlineMicrophone />
                             </button>
                         )}
                         <button
@@ -269,7 +269,7 @@ export default function ChatPage() {
                             className="bg-neutral-800 text-white p-1.5 rounded-full hover:bg-neutral-700 transition disabled:opacity-50"
                             title="Send Message"
                         >
-                            <FaArrowUp className="w-4 h-4" />
+                            <FaArrowUp />
                         </button>
                     </div>
                 </div>
