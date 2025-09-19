@@ -7,15 +7,37 @@ import { execSync } from "child_process";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Dynamic function example
+// Dynamic function example with full details
 async function getWeather(city: string) {
     const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
-    const WEATHER_API_URL = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}`;
+    if (!WEATHER_API_KEY) throw new Error("WEATHER_API_KEY is not set");
+
+    const WEATHER_API_URL = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(city)}&aqi=yes`;
     const res = await fetch(WEATHER_API_URL);
-    if (!res.ok) throw new Error(`Weather API error for city ${city}`);
+    if (!res.ok) throw new Error(`Weather API error for city ${city}: ${res.statusText}`);
+
     const data = await res.json();
-    return `Weather in ${city}:\n- Temperature: ${data.current.temp_c}°C\n- Condition: ${data.current.condition.text}`;
+
+    const current = data.current;
+
+    const weatherDetails = `
+Weather in ${data.location.name}, ${data.location.region}, ${data.location.country}:
+- Temperature: ${current.temp_c}°C / ${current.temp_f}°F
+- Condition: ${current.condition.text} (${current.condition.icon})
+- Feels Like: ${current.feelslike_c}°C / ${current.feelslike_f}°F
+- Humidity: ${current.humidity}%
+- Wind: ${current.wind_kph} kph (${current.wind_mph} mph), direction ${current.wind_dir}
+- Pressure: ${current.pressure_mb} mb / ${current.pressure_in} in
+- Precipitation: ${current.precip_mm} mm / ${current.precip_in} in
+- UV Index: ${current.uv}
+- Cloud Cover: ${current.cloud}%
+- Visibility: ${current.vis_km} km / ${current.vis_miles} miles
+- Air Quality Index (if available): ${current.air_quality ? JSON.stringify(current.air_quality, null, 2) : "N/A"}
+    `.trim();
+
+    return weatherDetails;
 }
+
 
 export async function POST(req: Request) {
     try {
@@ -103,6 +125,13 @@ export async function POST(req: Request) {
             case "computer_use": {
                 try {
                     const platform = process.platform;
+                    const isLocal = platform === "win32" || platform === "darwin" || platform === "linux";
+
+                    if (!isLocal) {
+                        output = "Computer actions can only be executed on your local machine.";
+                        break;
+                    }
+
                     const parts = prompt.trim().split(" ");
                     const action = parts[0].toLowerCase();
                     const args = parts.slice(1).join(" ");
@@ -117,8 +146,10 @@ export async function POST(req: Request) {
                             }
                             if (platform === "win32") {
                                 execSync(`start "" "${args}"`);
-                            } else {
+                            } else if (platform === "darwin") {
                                 execSync(`open "${args}"`);
+                            } else if (platform === "linux") {
+                                execSync(`xdg-open "${args}"`);
                             }
                             result = `Opened "${args}" successfully.`;
                             break;
@@ -164,14 +195,24 @@ export async function POST(req: Request) {
 
             case "local_shell": {
                 try {
+                    const platform = process.platform;
+                    const isLocal = platform === "win32" || platform === "darwin" || platform === "linux";
+
+                    if (!isLocal) {
+                        output = "Local shell commands can only run on your local machine.";
+                        break;
+                    }
+
                     const parts = prompt.trim().split(" ");
                     const cmd = parts[0].toLowerCase();
                     const args = parts.slice(1).join(" ");
                     const allowedCommands = ["echo", "dir", "cd", "ls", "pwd"];
+
                     if (!allowedCommands.includes(cmd)) {
                         output = `Command "${cmd}" not allowed for security reasons.`;
                         break;
                     }
+
                     const fullCmd = args ? `${cmd} ${args}` : cmd;
                     const result = execSync(fullCmd, { encoding: "utf-8" });
                     output = `Shell command output:\n${result}`;
