@@ -24,9 +24,9 @@ export default function Header() {
 
     return (
         <header className="w-full bg-transparent px-4 py-3 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
-            <h1 className="text-xl font-bold text-black flex items-center gap-2">
+            <Link to="/" className="text-xl font-bold text-black flex items-center gap-2">
                 Realtime Agent
-            </h1>
+            </Link>
 
             <div>
                 {session ? (
