@@ -215,7 +215,7 @@ export default function ChatPage() {
                             )}
                             {msg.bot && (
                                 <div className="flex justify-start">
-                                    <div className="max-w-[80%] bg-gray-100 text-black py-2 px-4 flex flex-col gap-1 rounded-2xl">
+                                    <div className="w-[100%] md:max-w-[80%] bg-gray-100 text-black py-2 px-4 flex flex-col gap-1 rounded-2xl">
                                         {renderMarkdown(msg.bot, idx)}
 
                                         {/* Tool badge */}
